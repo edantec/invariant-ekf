@@ -56,7 +56,7 @@ int main() {
   noise_params.setLandmarkNoise(0.1);
 
   // Initialize filter
-  InEKF filter(initial_state, noise_params);
+  InEKF filter(initial_state, noise_params, 2);
   cout << "Noise parameters are initialized to: \n";
   cout << filter.getNoiseParams() << endl;
   cout << "Robot's state is initialized to: \n";

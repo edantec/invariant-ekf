@@ -101,10 +101,21 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   // Constructors
   InEKF() {}
-  InEKF(const NoiseParams &params) : noise_params_(params) {}
-  InEKF(const RobotState &state) : state_(state) {}
+  InEKF(const RobotState &state) : state_(state) {
+    dX_.resize(5, 5);
+    dX_.setZero();
+  }
   InEKF(const RobotState &state, const NoiseParams &params)
-      : state_(state), noise_params_(params) {}
+      : state_(state), noise_params_(params) {
+    dX_.resize(5, 5);
+    dX_.setZero();
+  }
+  InEKF(const RobotState &state, const NoiseParams &params,
+        const long contact_nb)
+      : state_(state), noise_params_(params), contact_nb_(contact_nb) {
+    dX_.resize(5 + contact_nb_, 5 + contact_nb_);
+    dX_.setZero();
+  }
 
   RobotState getState();
   const NoiseParams getNoiseParams();
@@ -128,6 +139,8 @@ public:
 private:
   RobotState state_;
   NoiseParams noise_params_;
+  long contact_nb_;
+  Eigen::MatrixXd dX_;
   Eigen::Vector3d g_ = Eigen::Vector3d(0, 0, -9.81); // Gravity
   mapIntVector3d prior_landmarks_;
   std::map<int, int> estimated_landmarks_;

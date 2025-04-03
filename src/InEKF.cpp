@@ -146,8 +146,8 @@ void InEKF::propagate(const Eigen::VectorXd &m, double dt) {
   Eigen::MatrixXd Phi = I + A * dt + A * A * dt * dt / 2 +
                         A * A * A * dt * dt * dt / 6; // Approximation of exp(A)
   Eigen::MatrixXd Adj = I;
-  Adj.block(0, 0, dimP - dimTheta, dimP - dimTheta) =
-      adjoint_SEK3(X); // Approx 200 microseconds
+  adjoint_SEK3(X, Adj.block(0, 0, dimP - dimTheta,
+                            dimP - dimTheta)); // Approx 200 microseconds
   Eigen::MatrixXd PhiAdj = Phi * Adj;
   Eigen::MatrixXd Qk_hat =
       PhiAdj * Qk * PhiAdj.transpose() *
@@ -177,13 +177,17 @@ void InEKF::correct(const Observation &obs) {
   // Compute correction terms
   Eigen::MatrixXd Z = BigX * obs.Y - obs.b;
   Eigen::VectorXd delta = K * obs.PI * Z;
-  Eigen::MatrixXd dX =
-      exp_SEK3(delta.segment(0, delta.rows() - state_.dimTheta()));
+
+  long nx = (delta.rows() - state_.dimTheta() - 3) / 3 + 3;
+
+  exp_SEK3(delta.segment(0, delta.rows() - state_.dimTheta()),
+           dX_.topLeftCorner(nx, nx));
   Eigen::VectorXd dTheta =
       delta.segment(delta.rows() - state_.dimTheta(), state_.dimTheta());
 
   // Update state
-  Eigen::MatrixXd X_new = dX * state_.getX(); // Right-Invariant Update
+  Eigen::MatrixXd X_new =
+      dX_.topLeftCorner(nx, nx) * state_.getX(); // Right-Invariant Update
   Eigen::VectorXd Theta_new = state_.getTheta() + dTheta;
   state_.setX(X_new);
   state_.setTheta(Theta_new);

@@ -39,9 +39,9 @@ void exposeInEKF() {
 
   bp::class_<InEKF>("InEKF")
       .def(bp::init<>())
-      .def(bp::init<const NoiseParams &>())
       .def(bp::init<const RobotState &>())
       .def(bp::init<const RobotState &, const NoiseParams &>())
+      .def(bp::init<const RobotState &, const NoiseParams &, const long>())
 
       .def("getState", &InEKF::getState)
       .def("getNoiseParams", &InEKF::getNoiseParams)

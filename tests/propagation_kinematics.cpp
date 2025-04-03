@@ -5,17 +5,20 @@
  * -------------------------------------------------------------------------- */
 
 /**
- *  @file   kinematics.cpp
+ *  @file   propagation_speed.cpp
  *  @author Ross Hartley
- *  @brief  Example of invariant filtering for contact-aided inertial navigation
+ *  @brief  Test to determine average propagation speed
  *  @date   September 25, 2018
  **/
+
+#include <boost/test/unit_test.hpp>
 
 #include "inekf/InEKF.hpp"
 #include "inekf/utils.hpp"
 #include <Eigen/Dense>
+#include <Eigen/StdVector>
 #include <boost/algorithm/string.hpp>
-#include <cstdlib>
+
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -23,11 +26,14 @@
 
 #define DT_MIN 1e-6
 #define DT_MAX 1
+#define TOLERANCE 1e-6
+
+BOOST_AUTO_TEST_SUITE(kinematics)
 
 using namespace std;
 using namespace inekf;
 
-int main() {
+BOOST_AUTO_TEST_CASE(kinematics) {
   //  ---- Initialize invariant extended Kalman filter ----- //
   RobotState initial_state;
 
@@ -145,8 +151,19 @@ int main() {
     t_prev = t;
     imu_measurement_prev = imu_measurement;
   }
+  
+  // Final state should be
+  Eigen::MatrixXd Xref(6, 6);
+  Xref << 0.996183,  0.0828516, -0.0274863,   0.148885,    2.39881,    2.37682,
+          0.0851084,  -0.991845,   0.094868,   0.012167,  0.0157504,   0.135066,
+          -0.0194022, -0.0968452,   -0.99511,  0.0350042,  -0.111789,  -0.910618,
+          0,          0,          0,          1,          0,          0,
+          0,          0,          0,          0,          1,          0,
+          0,          0,          0,          0,          0,          1;
 
   // Print final state
-  cout << filter.getState() << endl;
-  return 0;
+  cout << "final state " << filter.getState() << endl;
+  BOOST_CHECK(Xref.isApprox(filter.getState().getX(), TOLERANCE));
 }
+
+BOOST_AUTO_TEST_SUITE_END()
