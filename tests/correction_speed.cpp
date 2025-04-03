@@ -35,7 +35,7 @@ using namespace boost::posix_time;
 
 BOOST_AUTO_TEST_CASE(correction) {
   // Initialize filter
-  InEKF filter;
+  InEKF filter(10);
   cout << "Robot's state is initialized to: \n";
   cout << filter.getState() << endl;
 

@@ -101,20 +101,16 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   // Constructors
   InEKF() {}
-  InEKF(const RobotState &state) : state_(state) {
-    dX_.resize(5, 5);
-    dX_.setZero();
-  }
+  InEKF(const long contact_nb) : contact_nb_(contact_nb) { setMatrices(); }
+  InEKF(const RobotState &state) : state_(state) { setMatrices(); }
   InEKF(const RobotState &state, const NoiseParams &params)
       : state_(state), noise_params_(params) {
-    dX_.resize(5, 5);
-    dX_.setZero();
+    setMatrices();
   }
   InEKF(const RobotState &state, const NoiseParams &params,
         const long contact_nb)
       : state_(state), noise_params_(params), contact_nb_(contact_nb) {
-    dX_.resize(5 + contact_nb_, 5 + contact_nb_);
-    dX_.setZero();
+    setMatrices();
   }
 
   RobotState getState();
@@ -139,13 +135,22 @@ public:
 private:
   RobotState state_;
   NoiseParams noise_params_;
-  long contact_nb_;
+  long contact_nb_ = 0;
   Eigen::MatrixXd dX_;
+  Eigen::MatrixXd Adj_;
   Eigen::Vector3d g_ = Eigen::Vector3d(0, 0, -9.81); // Gravity
   mapIntVector3d prior_landmarks_;
   std::map<int, int> estimated_landmarks_;
   std::map<int, bool> contacts_;
   std::map<int, int> estimated_contact_positions_;
+
+  void setMatrices() {
+    dX_.resize(5 + contact_nb_, 5 + contact_nb_);
+    dX_.setZero();
+
+    Adj_.resize((9 + contact_nb_) * 3, (9 + contact_nb_) * 3);
+    Adj_.setZero();
+  };
 #if INEKF_USE_MUTEX
   std::mutex estimated_contacts_mutex_;
   std::mutex estimated_landmarks_mutex_;

@@ -84,7 +84,7 @@ BOOST_AUTO_TEST_CASE(kinematics) {
     boost::split(measurement, line, boost::is_any_of(" "));
     // // Handle measurements
     if (measurement[0].compare("IMU") == 0) {
-      cout << "Received IMU Data, propagating state\n";
+      // cout << "Received IMU Data, propagating state\n";
       assert((measurement.size() - 2) == 6);
       t = stod98(measurement[1]);
       // Read in IMU data
@@ -99,7 +99,7 @@ BOOST_AUTO_TEST_CASE(kinematics) {
       }
 
     } else if (measurement[0].compare("CONTACT") == 0) {
-      cout << "Received CONTACT Data, setting filter's contact state\n";
+      // cout << "Received CONTACT Data, setting filter's contact state\n";
       assert((measurement.size() - 2) % 2 == 0);
       vector<pair<int, bool>> contacts;
       int id;
@@ -114,7 +114,7 @@ BOOST_AUTO_TEST_CASE(kinematics) {
       // Set filter's contact state
       filter.setContacts(contacts);
     } else if (measurement[0].compare("KINEMATIC") == 0) {
-      cout << "Received KINEMATIC observation, correcting state\n";
+      // cout << "Received KINEMATIC observation, correcting state\n";
       assert((measurement.size() - 2) % 44 == 0);
       int id;
       Eigen::Quaternion<double> q;
@@ -151,15 +151,13 @@ BOOST_AUTO_TEST_CASE(kinematics) {
     t_prev = t;
     imu_measurement_prev = imu_measurement;
   }
-  
+
   // Final state should be
   Eigen::MatrixXd Xref(6, 6);
-  Xref << 0.996183,  0.0828516, -0.0274863,   0.148885,    2.39881,    2.37682,
-          0.0851084,  -0.991845,   0.094868,   0.012167,  0.0157504,   0.135066,
-          -0.0194022, -0.0968452,   -0.99511,  0.0350042,  -0.111789,  -0.910618,
-          0,          0,          0,          1,          0,          0,
-          0,          0,          0,          0,          1,          0,
-          0,          0,          0,          0,          0,          1;
+  Xref << 0.996183, 0.0828516, -0.0274863, 0.148885, 2.39881, 2.37682,
+      0.0851084, -0.991845, 0.094868, 0.012167, 0.0157504, 0.135066, -0.0194022,
+      -0.0968452, -0.99511, 0.0350042, -0.111789, -0.910618, 0, 0, 0, 1, 0, 0,
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1;
 
   // Print final state
   cout << "final state " << filter.getState() << endl;

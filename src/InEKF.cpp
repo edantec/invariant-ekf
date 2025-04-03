@@ -113,6 +113,7 @@ void InEKF::propagate(const Eigen::VectorXd &m, double dt) {
   // ---- Linearized invariant error dynamics -----
   long dimX = state_.dimX();
   long dimP = state_.dimP();
+
   long dimTheta = state_.dimTheta();
   Eigen::MatrixXd A = Eigen::MatrixXd::Zero(dimP, dimP);
   // Inertial terms
@@ -179,7 +180,6 @@ void InEKF::correct(const Observation &obs) {
   Eigen::VectorXd delta = K * obs.PI * Z;
 
   long nx = (delta.rows() - state_.dimTheta() - 3) / 3 + 3;
-
   exp_SEK3(delta.segment(0, delta.rows() - state_.dimTheta()),
            dX_.topLeftCorner(nx, nx));
   Eigen::VectorXd dTheta =
