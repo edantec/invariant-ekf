@@ -50,14 +50,14 @@ public:
   long dimTheta();
   long dimP();
 
-  void setX(const Eigen::MatrixXd &X);
-  void setP(const Eigen::MatrixXd &P);
-  void setTheta(const Eigen::VectorXd &Theta);
-  void setRotation(const Eigen::Matrix3d &R);
-  void setVelocity(const Eigen::Vector3d &v);
-  void setPosition(const Eigen::Vector3d &p);
-  void setGyroscopeBias(const Eigen::Vector3d &bg);
-  void setAccelerometerBias(const Eigen::Vector3d &ba);
+  void setX(Eigen::Ref<const Eigen::MatrixXd> X);
+  void setP(Eigen::Ref<const Eigen::MatrixXd> P);
+  void setTheta(Eigen::Ref<const Eigen::VectorXd> Theta);
+  void setRotation(Eigen::Ref<const Eigen::Matrix3d> R);
+  void setVelocity(Eigen::Ref<const Eigen::Vector3d> v);
+  void setPosition(Eigen::Ref<const Eigen::Vector3d> p);
+  void setGyroscopeBias(Eigen::Ref<const Eigen::Vector3d> bg);
+  void setAccelerometerBias(Eigen::Ref<const Eigen::Vector3d> ba);
 
   void copyDiagX(int n, Eigen::MatrixXd &BigX);
 

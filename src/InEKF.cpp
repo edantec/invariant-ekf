@@ -13,6 +13,7 @@
 
 #include "inekf/InEKF.hpp"
 #include "inekf/LieGroup.hpp"
+#include <Eigen/src/Core/Matrix.h>
 
 namespace inekf {
 
@@ -101,7 +102,7 @@ void InEKF::propagate(const Eigen::VectorXd &m, double dt) {
 
   // Strapdown IMU motion model
   Eigen::Vector3d phi = w * dt;
-  Eigen::Matrix3d R_pred = R * exp_SO3(phi);
+  Eigen::Matrix3d R_pred = R * SE3_.exp_SO3(phi);
   Eigen::Vector3d v_pred = v + (R * a + g_) * dt;
   Eigen::Vector3d p_pred = p + v * dt + 0.5 * (R * a + g_) * dt * dt;
 
@@ -117,14 +118,16 @@ void InEKF::propagate(const Eigen::VectorXd &m, double dt) {
   long dimTheta = state_.dimTheta();
   Eigen::MatrixXd A = Eigen::MatrixXd::Zero(dimP, dimP);
   // Inertial terms
-  A.block<3, 3>(3, 0) = skew(g_); // TODO: Efficiency could be improved by not
-                                  // computing the constant terms every time
+  A.block<3, 3>(3, 0) =
+      SE3_.skew(g_); // TODO: Efficiency could be improved by not
+                     // computing the constant terms every time
   A.block<3, 3>(6, 3) = Eigen::Matrix3d::Identity();
   // Bias terms
   A.block<3, 3>(0, dimP - dimTheta) = -R;
   A.block<3, 3>(3, dimP - dimTheta + 3) = -R;
   for (int i = 3; i < dimX; ++i) {
-    A.block<3, 3>(3 * i - 6, dimP - dimTheta) = -skew(X.block<3, 1>(0, i)) * R;
+    A.block<3, 3>(3 * i - 6, dimP - dimTheta) =
+        -SE3_.skew(X.block<3, 1>(0, i)) * R;
   }
 
   // Noise terms
@@ -147,8 +150,8 @@ void InEKF::propagate(const Eigen::VectorXd &m, double dt) {
   Eigen::MatrixXd Phi = I + A * dt + A * A * dt * dt / 2 +
                         A * A * A * dt * dt * dt / 6; // Approximation of exp(A)
   Eigen::MatrixXd Adj = I;
-  adjoint_SEK3(X, Adj.block(0, 0, dimP - dimTheta,
-                            dimP - dimTheta)); // Approx 200 microseconds
+  SE3_.adjoint_SEK3(X, Adj.block(0, 0, dimP - dimTheta,
+                                 dimP - dimTheta)); // Approx 200 microseconds
   Eigen::MatrixXd PhiAdj = Phi * Adj;
   Eigen::MatrixXd Qk_hat =
       PhiAdj * Qk * PhiAdj.transpose() *
@@ -167,38 +170,58 @@ void InEKF::propagate(const Eigen::VectorXd &m, double dt) {
 void InEKF::correct(const Observation &obs) {
   // Compute Kalman Gain
   Eigen::MatrixXd P = state_.getP();
-  Eigen::MatrixXd PHT = P * obs.H.transpose();
-  Eigen::MatrixXd S = obs.H * PHT + obs.N;
-  Eigen::MatrixXd K = PHT * S.inverse();
+  long no = obs.H.rows();
+  long np = obs.H.cols();
+  PHT_.topLeftCorner(np, no).noalias() = P * obs.H.transpose();
+  S_.topLeftCorner(no, no).noalias() = obs.H * PHT_.topLeftCorner(np, no);
+  S_.topLeftCorner(no, no).noalias() += obs.N;
+  // TODO: avoid malloc by initializing a decomposition of type
+  // colPivHouseholderQr
+  // Eigen::ColPivHouseholderQR<Eigen::MatrixXd> decomposition =
+  // S_.topLeftCorner(np, np).colPivHouseholderQr();
+  // decomposition.compute(S_.topLeftCorner(np, np));
+  // Eigen::MatrixXd I = Eigen::MatrixXd::Identity(np, np);
+  // Eigen::MatrixXd Sol = Eigen::MatrixXd::Identity(np, np);
+  // Sol = decomposition.solve(I);
+  K_.topLeftCorner(np, no).noalias() =
+      PHT_.topLeftCorner(np, no) * S_.topLeftCorner(no, no).inverse();
 
   // Copy X along the diagonals if more than one measurement
   Eigen::MatrixXd BigX;
   state_.copyDiagX((int)obs.Y.rows() / state_.dimX(), BigX);
 
   // Compute correction terms
-  Eigen::MatrixXd Z = BigX * obs.Y - obs.b;
-  Eigen::VectorXd delta = K * obs.PI * Z;
+  long nb = obs.b.rows();
 
-  long nx = (delta.rows() - state_.dimTheta() - 3) / 3 + 3;
-  exp_SEK3(delta.segment(0, delta.rows() - state_.dimTheta()),
-           dX_.topLeftCorner(nx, nx));
-  Eigen::VectorXd dTheta =
-      delta.segment(delta.rows() - state_.dimTheta(), state_.dimTheta());
+  z_.head(nb).noalias() = BigX * obs.Y;
+  z_.head(nb).noalias() -= obs.b;
+  PIz_.head(no).noalias() = obs.PI * z_.head(nb);
+  delta_.head(np).noalias() = K_.topLeftCorner(np, no) * PIz_.head(no);
 
-  // Update state
-  Eigen::MatrixXd X_new =
-      dX_.topLeftCorner(nx, nx) * state_.getX(); // Right-Invariant Update
-  Eigen::VectorXd Theta_new = state_.getTheta() + dTheta;
-  state_.setX(X_new);
-  state_.setTheta(Theta_new);
+  long nx = (np - state_.dimTheta() - 3) / 3 + 3;
+  SE3_.exp_SEK3(delta_.head(np - state_.dimTheta()), dX_.topLeftCorner(nx, nx));
+
+  // Update state, Right-Invariant Update
+  X_new_.topLeftCorner(nx, nx).noalias() =
+      dX_.topLeftCorner(nx, nx) * state_.getX();
+  state_.setX(X_new_.topLeftCorner(nx, nx));
+  theta_new_.noalias() =
+      state_.getTheta() +
+      delta_.segment(np - state_.dimTheta(), state_.dimTheta());
+  state_.setTheta(theta_new_);
 
   // Update Covariance
-  Eigen::MatrixXd IKH =
-      Eigen::MatrixXd::Identity(state_.dimP(), state_.dimP()) - K * obs.H;
-  Eigen::MatrixXd P_new = IKH * P * IKH.transpose() +
-                          K * obs.N * K.transpose(); // Joseph update form
+  IKH_.setIdentity();
+  IKH_.topLeftCorner(np, np).noalias() -= K_.topLeftCorner(np, no) * obs.H;
+  P_inter_.topLeftCorner(np, np).noalias() = IKH_.topLeftCorner(np, np) * P;
+  P_new_.topLeftCorner(np, np).noalias() =
+      P_inter_.topLeftCorner(np, np) * IKH_.topLeftCorner(np, np).transpose();
+  P_inter_.topLeftCorner(np, no).noalias() = K_.topLeftCorner(np, no) * obs.N;
+  P_new_.topLeftCorner(np, np).noalias() +=
+      P_inter_.topLeftCorner(np, no) *
+      K_.topLeftCorner(np, no).transpose(); // Joseph update form
 
-  state_.setP(P_new);
+  state_.setP(P_new_.topLeftCorner(np, np));
 }
 
 // Create Observation from vector of landmark measurements
@@ -255,7 +278,7 @@ void InEKF::correctLandmarks(const vectorLandmarks &measured_landmarks) {
       startIndex = H.rows();
       H.conservativeResize(startIndex + 3, dimP);
       H.block(startIndex, 0, 3, dimP) = Eigen::MatrixXd::Zero(3, dimP);
-      H.block(startIndex, 0, 3, 3) = skew(it_prior->second);       // skew(p_wl)
+      H.block(startIndex, 0, 3, 3) = SE3_.skew(it_prior->second);  // skew(p_wl)
       H.block(startIndex, 6, 3, 3) = -Eigen::Matrix3d::Identity(); // -I
 
       // Fill out N

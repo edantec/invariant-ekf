@@ -144,49 +144,49 @@ long RobotState::dimP() {
   return P_.cols();
 }
 
-void RobotState::setX(const Eigen::MatrixXd &X) {
+void RobotState::setX(Eigen::Ref<const Eigen::MatrixXd> X) {
 #if INEKF_USE_MUTEX
   unique_lock<mutex> mlock(mutex_);
 #endif
   X_ = X;
 }
-void RobotState::setTheta(const Eigen::VectorXd &Theta) {
+void RobotState::setTheta(Eigen::Ref<const Eigen::VectorXd> Theta) {
 #if INEKF_USE_MUTEX
   unique_lock<mutex> mlock(mutex_);
 #endif
   Theta_ = Theta;
 }
-void RobotState::setP(const Eigen::MatrixXd &P) {
+void RobotState::setP(Eigen::Ref<const Eigen::MatrixXd> P) {
 #if INEKF_USE_MUTEX
   unique_lock<mutex> mlock(mutex_);
 #endif
   P_ = P;
 }
-void RobotState::setRotation(const Eigen::Matrix3d &R) {
+void RobotState::setRotation(Eigen::Ref<const Eigen::Matrix3d> R) {
 #if INEKF_USE_MUTEX
   unique_lock<mutex> mlock(mutex_);
 #endif
   X_.block<3, 3>(0, 0) = R;
 }
-void RobotState::setVelocity(const Eigen::Vector3d &v) {
+void RobotState::setVelocity(Eigen::Ref<const Eigen::Vector3d> v) {
 #if INEKF_USE_MUTEX
   unique_lock<mutex> mlock(mutex_);
 #endif
   X_.block<3, 1>(0, 3) = v;
 }
-void RobotState::setPosition(const Eigen::Vector3d &p) {
+void RobotState::setPosition(Eigen::Ref<const Eigen::Vector3d> p) {
 #if INEKF_USE_MUTEX
   unique_lock<mutex> mlock(mutex_);
 #endif
   X_.block<3, 1>(0, 4) = p;
 }
-void RobotState::setGyroscopeBias(const Eigen::Vector3d &bg) {
+void RobotState::setGyroscopeBias(Eigen::Ref<const Eigen::Vector3d> bg) {
 #if INEKF_USE_MUTEX
   unique_lock<mutex> mlock(mutex_);
 #endif
   Theta_.head(3) = bg;
 }
-void RobotState::setAccelerometerBias(const Eigen::Vector3d &ba) {
+void RobotState::setAccelerometerBias(Eigen::Ref<const Eigen::Vector3d> ba) {
 #if INEKF_USE_MUTEX
   unique_lock<mutex> mlock(mutex_);
 #endif

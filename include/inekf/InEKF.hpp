@@ -13,6 +13,8 @@
 
 #ifndef INEKF_H
 #define INEKF_H
+#define EIGEN_RUNTIME_NO_MALLOC
+
 #include <Eigen/Dense>
 #include <iostream>
 #include <map>
@@ -20,6 +22,7 @@
 #if INEKF_USE_MUTEX
 #include <mutex>
 #endif
+#include "inekf/LieGroup.hpp"
 #include "inekf/NoiseParams.hpp"
 #include "inekf/RobotState.hpp"
 
@@ -137,7 +140,20 @@ private:
   NoiseParams noise_params_;
   long contact_nb_ = 0;
   Eigen::MatrixXd dX_;
+  Eigen::MatrixXd X_new_;
+  Eigen::VectorXd theta_new_;
   Eigen::MatrixXd Adj_;
+  Eigen::MatrixXd PHT_;
+  Eigen::MatrixXd S_;
+  Eigen::MatrixXd K_;
+  Eigen::MatrixXd IKH_;
+  Eigen::MatrixXd P_inter_;
+  Eigen::MatrixXd P_new_;
+  Eigen::VectorXd delta_;
+  Eigen::VectorXd z_;
+  Eigen::VectorXd PIz_;
+
+  inekf::SE3_K SE3_;
   Eigen::Vector3d g_ = Eigen::Vector3d(0, 0, -9.81); // Gravity
   mapIntVector3d prior_landmarks_;
   std::map<int, int> estimated_landmarks_;
@@ -148,8 +164,41 @@ private:
     dX_.resize(5 + contact_nb_, 5 + contact_nb_);
     dX_.setZero();
 
+    X_new_.resize(5 + contact_nb_, 5 + contact_nb_);
+    X_new_.setZero();
+
+    theta_new_.resize(6);
+    theta_new_.setZero();
+
     Adj_.resize((9 + contact_nb_) * 3, (9 + contact_nb_) * 3);
     Adj_.setZero();
+
+    PHT_.resize((5 + contact_nb_) * 3, 3 * contact_nb_);
+    PHT_.setZero();
+
+    S_.resize(3 * contact_nb_, 3 * contact_nb_);
+    S_.setZero();
+
+    K_.resize((5 + contact_nb_) * 3, 3 * contact_nb_);
+    K_.setZero();
+
+    IKH_.resize((5 + contact_nb_) * 3, (5 + contact_nb_) * 3);
+    IKH_.setZero();
+
+    P_inter_.resize((5 + contact_nb_) * 3, (5 + contact_nb_) * 3);
+    P_inter_.setZero();
+
+    P_new_.resize((5 + contact_nb_) * 3, (5 + contact_nb_) * 3);
+    P_new_.setZero();
+
+    delta_.resize((5 + contact_nb_) * 3);
+    delta_.setZero();
+
+    z_.resize(7 * contact_nb_);
+    z_.setZero();
+
+    PIz_.resize(3 * contact_nb_);
+    PIz_.setZero();
   };
 #if INEKF_USE_MUTEX
   std::mutex estimated_contacts_mutex_;
