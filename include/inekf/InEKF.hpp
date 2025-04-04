@@ -149,11 +149,16 @@ private:
   Eigen::MatrixXd IKH_;
   Eigen::MatrixXd P_inter_;
   Eigen::MatrixXd P_new_;
+  Eigen::MatrixXd A_;
+  Eigen::MatrixXd A2_;
+  Eigen::MatrixXd A3_;
+  Eigen::MatrixXd Phi_;
   Eigen::VectorXd delta_;
   Eigen::VectorXd z_;
   Eigen::VectorXd PIz_;
 
   inekf::SE3_K SE3_;
+  Eigen::Matrix3d Skew_g_;
   Eigen::Vector3d g_ = Eigen::Vector3d(0, 0, -9.81); // Gravity
   mapIntVector3d prior_landmarks_;
   std::map<int, int> estimated_landmarks_;
@@ -191,6 +196,21 @@ private:
     P_new_.resize((5 + contact_nb_) * 3, (5 + contact_nb_) * 3);
     P_new_.setZero();
 
+    A_.resize(state_.dimP() + contact_nb_ * 3, state_.dimP() + contact_nb_ * 3);
+    A_.setZero();
+
+    A2_.resize(state_.dimP() + contact_nb_ * 3,
+               state_.dimP() + contact_nb_ * 3);
+    A2_.setZero();
+
+    A3_.resize(state_.dimP() + contact_nb_ * 3,
+               state_.dimP() + contact_nb_ * 3);
+    A3_.setZero();
+
+    Phi_.resize(state_.dimP() + contact_nb_ * 3,
+                state_.dimP() + contact_nb_ * 3);
+    Phi_.setZero();
+
     delta_.resize((5 + contact_nb_) * 3);
     delta_.setZero();
 
@@ -199,6 +219,8 @@ private:
 
     PIz_.resize(3 * contact_nb_);
     PIz_.setZero();
+
+    Skew_g_ = SE3_.skew(g_);
   };
 #if INEKF_USE_MUTEX
   std::mutex estimated_contacts_mutex_;

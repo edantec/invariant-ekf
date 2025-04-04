@@ -75,7 +75,10 @@ void InEKF::setContacts(vector<pair<int, bool>> contacts) {
 }
 
 // Sets gravity
-void InEKF::setGravity(const Eigen::Vector3d &gravity) { g_ = gravity; }
+void InEKF::setGravity(const Eigen::Vector3d &gravity) {
+  g_ = gravity;
+  Skew_g_ = SE3_.skew(g_);
+}
 
 // Return the filter's contact state
 const std::map<int, bool> InEKF::getContacts() {
@@ -87,7 +90,6 @@ const std::map<int, bool> InEKF::getContacts() {
 
 // InEKF Propagation - Inertial Data
 void InEKF::propagate(const Eigen::VectorXd &m, double dt) {
-
   Eigen::Vector3d w = m.head(3) - state_.getGyroscopeBias(); // Angular Velocity
   Eigen::Vector3d a =
       m.tail(3) - state_.getAccelerometerBias(); // Linear Acceleration
@@ -114,54 +116,73 @@ void InEKF::propagate(const Eigen::VectorXd &m, double dt) {
   // ---- Linearized invariant error dynamics -----
   long dimX = state_.dimX();
   long dimP = state_.dimP();
-
   long dimTheta = state_.dimTheta();
-  Eigen::MatrixXd A = Eigen::MatrixXd::Zero(dimP, dimP);
+
+  A_.setZero();
   // Inertial terms
-  A.block<3, 3>(3, 0) =
-      SE3_.skew(g_); // TODO: Efficiency could be improved by not
-                     // computing the constant terms every time
-  A.block<3, 3>(6, 3) = Eigen::Matrix3d::Identity();
+  A_.block<3, 3>(3, 0) = Skew_g_; // TODO: Efficiency could be improved by not
+                                  // computing the constant terms every time
+  A_.block<3, 3>(6, 3).setIdentity();
   // Bias terms
-  A.block<3, 3>(0, dimP - dimTheta) = -R;
-  A.block<3, 3>(3, dimP - dimTheta + 3) = -R;
+  A_.block<3, 3>(0, dimP - dimTheta) = -R;
+  A_.block<3, 3>(3, dimP - dimTheta + 3) = -R;
   for (int i = 3; i < dimX; ++i) {
-    A.block<3, 3>(3 * i - 6, dimP - dimTheta) =
+    A_.block<3, 3>(3 * i - 6, dimP - dimTheta).noalias() =
         -SE3_.skew(X.block<3, 1>(0, i)) * R;
   }
+  A2_.topLeftCorner(dimP, dimP).noalias() =
+      A_.topLeftCorner(dimP, dimP) * A_.topLeftCorner(dimP, dimP);
+  A3_.topLeftCorner(dimP, dimP).noalias() =
+      A2_.topLeftCorner(dimP, dimP) * A_.topLeftCorner(dimP, dimP);
+
+  // Discretization
+  Phi_.topLeftCorner(dimP, dimP).setIdentity();
+  Phi_.topLeftCorner(dimP, dimP).noalias() += A_.topLeftCorner(dimP, dimP) * dt;
+  Phi_.topLeftCorner(dimP, dimP).noalias() +=
+      A2_.topLeftCorner(dimP, dimP) * dt * dt / 2;
+  Phi_.topLeftCorner(dimP, dimP).noalias() += A3_.topLeftCorner(dimP, dimP) *
+                                              dt * dt * dt /
+                                              6; // Approximation of exp(A)
 
   // Noise terms
-  Eigen::MatrixXd Qk = Eigen::MatrixXd::Zero(
-      dimP, dimP); // Landmark noise terms will remain zero
-  Qk.block<3, 3>(0, 0) = noise_params_.getGyroscopeCov();
-  Qk.block<3, 3>(3, 3) = noise_params_.getAccelerometerCov();
+  A_.topLeftCorner(dimP, dimP).setZero();
+  A_.block<3, 3>(0, 0) = noise_params_.getGyroscopeCov();
+  A_.block<3, 3>(3, 3) = noise_params_.getAccelerometerCov();
   for (map<int, int>::iterator it = estimated_contact_positions_.begin();
        it != estimated_contact_positions_.end(); ++it) {
-    Qk.block<3, 3>(3 + 3 * (it->second - 3), 3 + 3 * (it->second - 3)) =
+    A_.block<3, 3>(3 + 3 * (it->second - 3), 3 + 3 * (it->second - 3)) =
         noise_params_.getContactCov(); // Contact noise terms
   }
-  Qk.block<3, 3>(dimP - dimTheta, dimP - dimTheta) =
+  A_.block<3, 3>(dimP - dimTheta, dimP - dimTheta) =
       noise_params_.getGyroscopeBiasCov();
-  Qk.block<3, 3>(dimP - dimTheta + 3, dimP - dimTheta + 3) =
+  A_.block<3, 3>(dimP - dimTheta + 3, dimP - dimTheta + 3) =
       noise_params_.getAccelerometerBiasCov();
 
   // Discretization
-  Eigen::MatrixXd I = Eigen::MatrixXd::Identity(dimP, dimP);
-  Eigen::MatrixXd Phi = I + A * dt + A * A * dt * dt / 2 +
-                        A * A * A * dt * dt * dt / 6; // Approximation of exp(A)
-  Eigen::MatrixXd Adj = I;
-  SE3_.adjoint_SEK3(X, Adj.block(0, 0, dimP - dimTheta,
-                                 dimP - dimTheta)); // Approx 200 microseconds
-  Eigen::MatrixXd PhiAdj = Phi * Adj;
-  Eigen::MatrixXd Qk_hat =
-      PhiAdj * Qk * PhiAdj.transpose() *
-      dt; // Approximated discretized noise matrix (faster by 400 microseconds)
+  A2_.topLeftCorner(dimP, dimP).setIdentity();
+  SE3_.adjoint_SEK3(
+      X, A2_.topLeftCorner(dimP - dimTheta,
+                           dimP - dimTheta)); // Approx 200 microseconds
+  A3_.topLeftCorner(dimP, dimP).noalias() =
+      Phi_.topLeftCorner(dimP, dimP) * A2_.topLeftCorner(dimP, dimP);
+  A2_.topLeftCorner(dimP, dimP).noalias() =
+      A3_.topLeftCorner(dimP, dimP) * A_.topLeftCorner(dimP, dimP);
+  A_.topLeftCorner(dimP, dimP).noalias() =
+      A2_.topLeftCorner(dimP, dimP) *
+      A3_.topLeftCorner(dimP, dimP)
+          .transpose(); // Approximated discretized noise matrix (faster by 400
+                        // microseconds)
+  A_.topLeftCorner(dimP, dimP) *= dt;
 
   // Propagate Covariance
-  Eigen::MatrixXd P_pred = Phi * P * Phi.transpose() + Qk_hat;
+  A2_.topLeftCorner(dimP, dimP).noalias() = Phi_.topLeftCorner(dimP, dimP) * P;
+  A3_.topLeftCorner(dimP, dimP).noalias() =
+      A2_.topLeftCorner(dimP, dimP) *
+      Phi_.topLeftCorner(dimP, dimP).transpose();
+  A3_.topLeftCorner(dimP, dimP).noalias() += A_.topLeftCorner(dimP, dimP);
 
   // Set new covariance
-  state_.setP(P_pred);
+  state_.setP(A3_.topLeftCorner(dimP, dimP));
 
   return;
 }
