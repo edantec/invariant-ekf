@@ -31,11 +31,23 @@ public:
   Kinematics() {}
   Kinematics(int id_in, const Eigen::MatrixXd &pose_in,
              const Eigen::MatrixXd &covariance_in)
-      : id(id_in), pose(pose_in), covariance(covariance_in) {}
+      : id(id_in), pose(pose_in), covariance(covariance_in) {
+    velocity.setZero();
+    covariance_vel.setZero();
+  }
+
+  Kinematics(int id_in, const Eigen::MatrixXd &pose_in,
+             const Eigen::MatrixXd &covariance_in,
+             const Eigen::Vector3d &velocity_in,
+             const Eigen::Matrix3d &covariance_vel_in)
+      : id(id_in), pose(pose_in), velocity(velocity_in),
+        covariance(covariance_in), covariance_vel(covariance_vel_in) {}
 
   int id;
   Eigen::MatrixXd pose;
+  Eigen::Vector3d velocity;
   Eigen::MatrixXd covariance;
+  Eigen::Matrix3d covariance_vel;
 };
 
 class Landmark {
@@ -131,7 +143,7 @@ private:
   Eigen::Vector3d g_ = Eigen::Vector3d(0, 0, -9.81); // Gravity
   mapIntVector3d prior_landmarks_;
   std::map<int, int> estimated_landmarks_;
-  std::map<int, bool> contacts_;
+  std::map<int, bool> contacts_states_;
   std::map<int, int> estimated_contact_positions_;
 #if INEKF_USE_MUTEX
   std::mutex estimated_contacts_mutex_;

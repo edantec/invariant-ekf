@@ -33,9 +33,13 @@ void exposeInEKF() {
   bp::class_<Kinematics>("Kinematics")
       .def(bp::init<>())
       .def(bp::init<int, const Eigen::MatrixXd &, const Eigen::MatrixXd &>())
+      .def(bp::init<int, const Eigen::MatrixXd &, const Eigen::MatrixXd &,
+                    const Eigen::Vector3d &, const Eigen::Matrix3d &>())
       .def_readwrite("id", &Kinematics::id)
       .def_readwrite("pose", &Kinematics::pose)
-      .def_readwrite("covariance", &Kinematics::covariance);
+      .def_readwrite("velocity", &Kinematics::velocity)
+      .def_readwrite("covariance", &Kinematics::covariance)
+      .def_readwrite("covariance_vel", &Kinematics::covariance_vel);
 
   bp::class_<InEKF>("InEKF")
       .def(bp::init<>())

@@ -64,7 +64,7 @@ void InEKF::setContacts(vector<pair<int, bool>> contacts) {
   // Insert new measured contact states
   for (vector<pair<int, bool>>::iterator it = contacts.begin();
        it != contacts.end(); ++it) {
-    pair<map<int, bool>::iterator, bool> ret = contacts_.insert(*it);
+    pair<map<int, bool>::iterator, bool> ret = contacts_states_.insert(*it);
     // If contact is already in the map, replace with new value
     if (ret.second == false) {
       ret.first->second = it->second;
@@ -81,7 +81,7 @@ const std::map<int, bool> InEKF::getContacts() {
 #if INEKF_USE_MUTEX
   lock_guard<mutex> mlock(estimated_contacts_mutex_);
 #endif
-  return contacts_;
+  return contacts_states_;
 }
 
 // InEKF Propagation - Inertial Data
@@ -170,12 +170,8 @@ void InEKF::correct(const Observation &obs) {
   Eigen::MatrixXd S = obs.H * PHT + obs.N;
   Eigen::MatrixXd K = PHT * S.inverse();
 
-  // Copy X along the diagonals if more than one measurement
-  Eigen::MatrixXd BigX;
-  state_.copyDiagX((int)obs.Y.rows() / state_.dimX(), BigX);
-
   // Compute correction terms
-  Eigen::MatrixXd Z = BigX * obs.Y - obs.b;
+  Eigen::MatrixXd Z = state_.getX() * obs.Y - obs.b;
   Eigen::VectorXd delta = K * obs.PI * Z;
   Eigen::MatrixXd dX =
       exp_SEK3(delta.segment(0, delta.rows() - state_.dimTheta()));
@@ -395,16 +391,35 @@ void InEKF::correctKinematics(const vectorKinematics &measured_kinematics) {
 #if INEKF_USE_MUTEX
   lock_guard<mutex> mlock(estimated_contacts_mutex_);
 #endif
+
+  long dimX = state_.dimX();
+  long dimP = state_.dimP();
+
   Eigen::VectorXd Y;
+  Y.resize(dimX);
   Eigen::VectorXd b;
+  b.resize(dimX);
   Eigen::MatrixXd H;
+  H.resize(3, dimP);
   Eigen::MatrixXd N;
+  N.resize(3, 3);
   Eigen::MatrixXd PI;
+  PI.resize(3, dimX);
 
   Eigen::Matrix3d R = state_.getRotation();
   vector<pair<int, int>> remove_contacts;
   vectorKinematics new_contacts;
   vector<int> used_contact_ids;
+
+  /* std::cout << "estimated contacts :" << std::endl;
+  for (auto it = estimated_contact_positions_.begin(); it !=
+  estimated_contact_positions_.end(); it++)
+  {
+      std::cout << it->first    // string (key)
+                << ':'
+                << it->second   // string's value
+                << std::endl;
+  } */
 
   for (vectorKinematicsIterator it = measured_kinematics.begin();
        it != measured_kinematics.end(); ++it) {
@@ -419,8 +434,8 @@ void InEKF::correctKinematics(const vectorKinematics &measured_kinematics) {
     }
 
     // Find contact indicator for the kinematics measurement
-    map<int, bool>::iterator it_contact = contacts_.find(it->id);
-    if (it_contact == contacts_.end()) {
+    map<int, bool>::iterator it_contact = contacts_states_.find(it->id);
+    if (it_contact == contacts_states_.end()) {
       continue;
     } // Skip if contact state is unknown
     bool contact_indicated = it_contact->second;
@@ -442,66 +457,61 @@ void InEKF::correctKinematics(const vectorKinematics &measured_kinematics) {
       // If contact is indicated and id is found in estimated_contacts_, then
       // correct using kinematics
     } else if (contact_indicated && found) {
-      long dimX = state_.dimX();
-      long dimP = state_.dimP();
-      long startIndex;
-
       // Fill out Y
-      startIndex = Y.rows();
-      Y.conservativeResize(startIndex + dimX, Eigen::NoChange);
-      Y.segment(startIndex, dimX) = Eigen::VectorXd::Zero(dimX);
-      Y.segment(startIndex, 3) = it->pose.block<3, 1>(0, 3); // p_bc
-      Y(startIndex + 4) = 1;
-      Y(startIndex + it_estimated->second) = -1;
+      Y.setZero();
+      Y.head(3) = it->pose.block<3, 1>(0, 3); // p_bc
+      Y(4) = 1;
+      Y(it_estimated->second) = -1;
 
       // Fill out b
-      startIndex = b.rows();
-      b.conservativeResize(startIndex + dimX, Eigen::NoChange);
-      b.segment(startIndex, dimX) = Eigen::VectorXd::Zero(dimX);
-      b(startIndex + 4) = 1;
-      b(startIndex + it_estimated->second) = -1;
+      b.setZero();
+      b(4) = 1;
+      b(it_estimated->second) = -1;
 
       // Fill out H
-      startIndex = H.rows();
-      H.conservativeResize(startIndex + 3, dimP);
-      H.block(startIndex, 0, 3, dimP) = Eigen::MatrixXd::Zero(3, dimP);
-      H.block(startIndex, 6, 3, 3) = -Eigen::Matrix3d::Identity(); // -I
-      H.block(startIndex, 3 * it_estimated->second - 6, 3, 3) =
-          Eigen::Matrix3d::Identity(); // I
+      H.setZero();
+      H.block(0, 6, 3, 3) = -Eigen::Matrix3d::Identity(); // -I
+      H.block(0, 3 * it_estimated->second - 6, 3, 3).setIdentity();
 
       // Fill out N
-      startIndex = N.rows();
-      N.conservativeResize(startIndex + 3, startIndex + 3);
-      N.block(startIndex, 0, 3, startIndex) =
-          Eigen::MatrixXd::Zero(3, startIndex);
-      N.block(0, startIndex, startIndex, 3) =
-          Eigen::MatrixXd::Zero(startIndex, 3);
-      N.block(startIndex, startIndex, 3, 3) =
-          R * it->covariance.block<3, 3>(3, 3) * R.transpose();
+      N.setZero();
+      N = R * it->covariance.block<3, 3>(3, 3) * R.transpose();
 
       // Fill out PI
-      startIndex = PI.rows();
-      long startIndex2 = PI.cols();
-      PI.conservativeResize(startIndex + 3, startIndex2 + dimX);
-      PI.block(startIndex, 0, 3, startIndex2) =
-          Eigen::MatrixXd::Zero(3, startIndex2);
-      PI.block(0, startIndex2, startIndex, dimX) =
-          Eigen::MatrixXd::Zero(startIndex, dimX);
-      PI.block(startIndex, startIndex2, 3, dimX) =
-          Eigen::MatrixXd::Zero(3, dimX);
-      PI.block(startIndex, startIndex2, 3, 3) = Eigen::Matrix3d::Identity();
+      PI.setZero();
+      PI.topLeftCorner(3, 3).setIdentity();
 
+      // Correct state using stacked observation
+      Observation obs(Y, b, H, N, PI);
+      this->correct(obs);
+
+      auto vel_foot = it->velocity;
+      if (!vel_foot.isZero(0)) {
+        // Fill out Y
+        Y.setZero();
+        Y.head(3) = vel_foot; // v_bc
+        Y(3) = -1;
+
+        // Fill out b
+        b.setZero();
+        b(3) = -1;
+
+        // Fill out H
+        H.setZero();
+        H.block(0, 3, 3, 3).setIdentity(); // I
+
+        // Fill out N
+        N.setZero();
+        N = R * it->covariance_vel * R.transpose();
+
+        Observation obs_vel(Y, b, H, N, PI);
+        this->correct(obs_vel);
+      }
       //  If contact is not indicated and id is found in estimated_contacts_,
       //  then skip
     } else {
       continue;
     }
-  }
-
-  // Correct state using stacked observation
-  Observation obs(Y, b, H, N, PI);
-  if (!obs.empty()) {
-    this->correct(obs);
   }
 
   // Remove contacts from state
