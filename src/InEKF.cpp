@@ -517,32 +517,36 @@ void InEKF::correctKinematics(const vectorKinematics &measured_kinematics) {
 
       // Remove row and column from X
       removeRowAndColumn(X_rem, it->second);
+      removeRowAndColumn(X_rem, it->second);
 
       // Remove 3 rows and columns from P
       int startIndex = 3 + 3 * (it->second - 3);
       removeRowAndColumn(P_rem, startIndex); // TODO: Make more efficient
       removeRowAndColumn(P_rem, startIndex); // TODO: Make more efficient
       removeRowAndColumn(P_rem, startIndex); // TODO: Make more efficient
+      removeRowAndColumn(P_rem, startIndex); // TODO: Make more efficient
+      removeRowAndColumn(P_rem, startIndex); // TODO: Make more efficient
+      removeRowAndColumn(P_rem, startIndex); // TODO: Make more efficient
 
       // Update all indices for estimated_landmarks and
       // estimated_contact_positions
-      for (std::map<int, int>::iterator it2 = estimated_landmarks_.begin();
+      /* for (std::map<int, int>::iterator it2 = estimated_landmarks_.begin();
            it2 != estimated_landmarks_.end(); ++it2) {
         if (it2->second > it->second)
           it2->second -= 1;
-      }
+      } */
       for (std::map<int, int>::iterator it2 =
                estimated_contact_positions_.begin();
            it2 != estimated_contact_positions_.end(); ++it2) {
         if (it2->second > it->second)
-          it2->second -= 1;
+          it2->second -= 2;
       }
       // We also need to update the indices of remove_contacts in the case where
       // multiple contacts are being removed at once
       for (std::vector<std::pair<int, int>>::iterator it2 = it;
            it2 != remove_contacts.end(); ++it2) {
         if (it2->second > it->second)
-          it2->second -= 1;
+          it2->second -= 2;
       }
 
       // Update state and covariance
@@ -562,25 +566,32 @@ void InEKF::correctKinematics(const vectorKinematics &measured_kinematics) {
          it != new_contacts.end(); ++it) {
       // Initialize new landmark mean
       long startIndex = X_aug.rows();
-      X_aug.conservativeResize(startIndex + 1, startIndex + 1);
+      X_aug.conservativeResize(startIndex + 2, startIndex + 2);
       X_aug.block(startIndex, 0, 1, startIndex).setZero();
+      X_aug.block(startIndex + 1, 0, 1, startIndex + 1).setZero();
       X_aug.block(0, startIndex, startIndex, 1).setZero();
+      X_aug.block(0, startIndex + 1, startIndex + 1, 1).setZero();
       X_aug(startIndex, startIndex) = 1;
+      X_aug(startIndex + 1, startIndex + 1) = 1;
       X_aug.block(0, startIndex, 3, 1) = p + R * it->position;
+      X_aug.block(0, startIndex + 1, 3, 1) = R * it->velocity;
 
       // Initialize new landmark covariance - TODO:speed up
       Eigen::MatrixXd F =
-          Eigen::MatrixXd::Zero(state_.dimP() + 3, state_.dimP());
+          Eigen::MatrixXd::Zero(state_.dimP() + 3 + 3, state_.dimP());
       F.block(0, 0, dimPTheta,
               dimPTheta).setIdentity();          // for old X
       F.block(dimPTheta, 6, 3, 3).setIdentity(); // for new landmark
-      F.block(dimPTheta + 3, dimPTheta, state_.dimTheta(),
+      F.block(dimPTheta + 6, dimPTheta, state_.dimTheta(),
               state_.dimTheta())
           .setIdentity(); // for theta
 
       Eigen::MatrixXd G = Eigen::MatrixXd::Zero(F.rows(), 3);
-      G.block(G.rows() - state_.dimTheta() - 3, 0, 3, 3) = R;
-      P_aug = (F * P_aug * F.transpose() + G * it->covariance * G.transpose())
+      G.block(G.rows() - state_.dimTheta() - 6, 0, 3, 3) = R;
+      Eigen::MatrixXd G1 = Eigen::MatrixXd::Zero(F.rows(), 3);
+      G.block(G1.rows() - state_.dimTheta() - 3, 0, 3, 3) = R;
+      P_aug = (F * P_aug * F.transpose() + G * it->covariance * G.transpose() +
+               G1 * it->covariance_vel * G1.transpose())
                   .eval();
 
       // Update state and covariance

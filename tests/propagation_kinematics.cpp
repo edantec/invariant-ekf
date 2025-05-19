@@ -182,9 +182,21 @@ BOOST_AUTO_TEST_CASE(kinematics) {
       -0.0968452, -0.99511, 0.0350042, -0.111789, -0.910618, 0, 0, 0, 1, 0, 0,
       0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1;
 
+  Eigen::MatrixXd Rref(3, 3);
+  Rref << 0.996183, 0.0828516, -0.0274863, 0.0851084, -0.991845, 0.094868,
+      -0.0194022, -0.0968452, -0.99511;
+
+  Eigen::Vector3d vref;
+  vref << 2.39881, 0.0157504, -0.111789;
+
+  Eigen::Vector3d pref;
+  pref << 2.37682, 0.135066, -0.910618;
+
   // Print final state
   cout << "final state " << filter.getState() << endl;
-  BOOST_CHECK(Xref.isApprox(filter.getState().getX(), TOLERANCE));
+  BOOST_CHECK(Rref.isApprox(filter.getState().getRotation(), TOLERANCE));
+  BOOST_CHECK(vref.isApprox(filter.getState().getVelocity(), TOLERANCE));
+  BOOST_CHECK(pref.isApprox(filter.getState().getPosition(), TOLERANCE));
   std::cout << "Mean correct time is " << mean_kinematics_time << std::endl;
   std::cout << "Mean propagate time is " << mean_imu_time << std::endl;
 }
