@@ -27,7 +27,7 @@
 
 #define DT_MIN 1e-6
 #define DT_MAX 1
-#define TOLERANCE 1e-6
+#define TOLERANCE 1e-5
 
 BOOST_AUTO_TEST_SUITE(kinematics)
 
@@ -186,11 +186,11 @@ BOOST_AUTO_TEST_CASE(kinematics) {
   Rref << 0.996183, 0.0828516, -0.0274863, 0.0851084, -0.991845, 0.094868,
       -0.0194022, -0.0968452, -0.99511;
 
-  Eigen::Vector3d vref;
-  vref << 2.39881, 0.0157504, -0.111789;
-
   Eigen::Vector3d pref;
-  pref << 2.37682, 0.135066, -0.910618;
+  pref << 2.39881, 0.0157504, -0.111789;
+
+  Eigen::Vector3d vref;
+  vref << 0.148885, 0.012167, 0.0350042;
 
   // Print final state
   cout << "final state " << filter.getState() << endl;

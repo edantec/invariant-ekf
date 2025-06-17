@@ -65,12 +65,22 @@ void exposeNoiseParams() {
            (void(NoiseParams::*)(Eigen::Ref<const Eigen::Matrix3d>)) &
                NoiseParams::setContactNoise)
 
+      .def("setContactVelNoise",
+           (void(NoiseParams::*)(double)) & NoiseParams::setContactVelNoise)
+      .def("setContactVelNoise",
+           (void(NoiseParams::*)(Eigen::Ref<const Eigen::Vector3d>)) &
+               NoiseParams::setContactVelNoise)
+      .def("setContactVelNoise",
+           (void(NoiseParams::*)(Eigen::Ref<const Eigen::Matrix3d>)) &
+               NoiseParams::setContactVelNoise)
+
       .def("getGyroscopeCov", &NoiseParams::getGyroscopeCov)
       .def("getAccelerometerCov", &NoiseParams::getAccelerometerCov)
       .def("getGyroscopeBiasCov", &NoiseParams::getGyroscopeBiasCov)
       .def("getAccelerometerBiasCov", &NoiseParams::getAccelerometerBiasCov)
       .def("getLandmarkCov", &NoiseParams::getLandmarkCov)
-      .def("getContactCov", &NoiseParams::getContactCov);
+      .def("getContactCov", &NoiseParams::getContactCov)
+      .def("getContactVelCov", &NoiseParams::getContactVelCov);
 }
 } // namespace python
 } // namespace inekf

@@ -53,6 +53,10 @@ Eigen::Ref<const Eigen::Vector3d> RobotState::getVelocity() const {
 Eigen::Ref<const Eigen::Vector3d> RobotState::getPosition() const {
   return X_.block<3, 1>(0, 4);
 }
+Eigen::Ref<const Eigen::Vector3d> RobotState::getColumn(const int id) const {
+  return X_.block<3, 1>(0, id);
+}
+
 Eigen::Ref<const Eigen::Vector3d> RobotState::getGyroscopeBias() const {
   return Theta_.head(3);
 }
@@ -76,6 +80,9 @@ void RobotState::setVelocity(Eigen::Ref<const Eigen::Vector3d> v) {
 }
 void RobotState::setPosition(Eigen::Ref<const Eigen::Vector3d> p) {
   X_.block<3, 1>(0, 4) = p;
+}
+void RobotState::setColumn(Eigen::Ref<const Eigen::Vector3d> d, const int id) {
+  X_.block<3, 1>(0, id) = d;
 }
 void RobotState::setGyroscopeBias(Eigen::Ref<const Eigen::Vector3d> bg) {
   Theta_.head(3) = bg;

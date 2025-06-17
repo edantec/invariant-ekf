@@ -93,6 +93,14 @@ void InEKF::propagate(const Eigen::VectorXd &m, double dt) {
   Eigen::Vector3d v_pred = v + (R * a + g_) * dt;
   Eigen::Vector3d p_pred = p + v * dt + 0.5 * (R * a + g_) * dt * dt;
 
+  for (std::map<int, int>::iterator it = estimated_contact_positions_.begin();
+       it != estimated_contact_positions_.end(); ++it) {
+    Eigen::Vector3d d = state_.getColumn(it->second);
+    Eigen::Vector3d sigma = state_.getColumn(it->second + 1);
+    Eigen::Vector3d d_pred = d + sigma * dt;
+    state_.setColumn(d_pred, it->second);
+  }
+
   // Set new state (bias has constant dynamics)
   state_.setRotation(R_pred);
   state_.setVelocity(v_pred);
@@ -103,9 +111,16 @@ void InEKF::propagate(const Eigen::VectorXd &m, double dt) {
   long dimP = state_.dimP();
   long dimTheta = state_.dimTheta();
   Eigen::MatrixXd A = Eigen::MatrixXd::Zero(dimP, dimP);
-  // Inertial terms
-  A.block<3, 3>(3, 0) = Skew_g_;
-  A.block<3, 3>(6, 3).setIdentity();
+  // ---- Inertial terms ----
+  A.block<3, 3>(3, 0) = Skew_g_;     // Rotation to base velocity
+  A.block<3, 3>(6, 3).setIdentity(); // Base velocity to base position
+  // Contact velocity to contact position
+  for (std::map<int, int>::iterator it = estimated_contact_positions_.begin();
+       it != estimated_contact_positions_.end(); ++it) {
+    A.block<3, 3>((it->second - 2) * 3, (it->second - 1) * 3).setIdentity();
+    ;
+  }
+
   // Bias terms
   A.block<3, 3>(0, dimP - dimTheta) = -R;
   A.block<3, 3>(3, dimP - dimTheta + 3) = -R;
@@ -121,7 +136,9 @@ void InEKF::propagate(const Eigen::VectorXd &m, double dt) {
   for (std::map<int, int>::iterator it = estimated_contact_positions_.begin();
        it != estimated_contact_positions_.end(); ++it) {
     Qk.block<3, 3>(3 + 3 * (it->second - 3), 3 + 3 * (it->second - 3)) =
-        noise_params_.getContactCov(); // Contact noise terms
+        noise_params_.getContactCov(); // Contact noise terms for position
+    Qk.block<3, 3>(3 + 3 * (it->second + 1 - 3), 3 + 3 * (it->second + 1 - 3)) =
+        noise_params_.getContactVelCov(); // Contact noise terms for velocity
   }
   Qk.block<3, 3>(dimP - dimTheta, dimP - dimTheta) =
       noise_params_.getGyroscopeBiasCov();
@@ -453,26 +470,30 @@ void InEKF::correctKinematics(const vectorKinematics &measured_kinematics) {
         PI.block(startIndex, startIndex2, 3, 3).setIdentity();
       }
 
-      // Fill out velocity measures
-      auto vel_foot = it->velocity;
+      // Fill out velocity base measures
+      auto vel_foot = it->velocity_local;
       if (!vel_foot.isZero(0)) {
         startIndex = Y.rows();
         Y.conservativeResize(startIndex + dimX, Eigen::NoChange);
         Y.segment(startIndex, dimX).setZero();
         Y.segment(startIndex, 3) = vel_foot; // v_bc
         Y(startIndex + 3) = -1;
+        Y(startIndex + it_estimated->second + 1) = 1;
 
         // Fill out b
         startIndex = b.rows();
         b.conservativeResize(startIndex + dimX, Eigen::NoChange);
         b.segment(startIndex, dimX).setZero();
         b(startIndex + 3) = -1;
+        b(startIndex + it_estimated->second + 1) = 1;
 
         // Fill out H
         startIndex = H.rows();
         H.conservativeResize(startIndex + 3, dimP);
         H.block(startIndex, 0, 3, dimP).setZero();
         H.block(startIndex, 3, 3, 3).setIdentity();
+        H.block(startIndex, 3 * it_estimated->second - 3, 3, 3) =
+            -Eigen::Matrix3d::Identity();
 
         // Fill out N
         startIndex = N.rows();
@@ -480,7 +501,47 @@ void InEKF::correctKinematics(const vectorKinematics &measured_kinematics) {
         N.block(startIndex, 0, 3, startIndex).setZero();
         N.block(0, startIndex, startIndex, 3).setZero();
         N.block(startIndex, startIndex, 3, 3) =
-            R * it->covariance_vel * R.transpose();
+            R * it->covariance_vel_local * R.transpose();
+
+        // Fill out PI
+        startIndex = PI.rows();
+        startIndex2 = PI.cols();
+        PI.conservativeResize(startIndex + 3, startIndex2 + dimX);
+        PI.block(startIndex, 0, 3, startIndex2).setZero();
+        PI.block(0, startIndex2, startIndex, dimX).setZero();
+        PI.block(startIndex, startIndex2, 3, dimX).setZero();
+        PI.block(startIndex, startIndex2, 3, 3).setIdentity();
+      }
+
+      // Fill out velocity contact measures
+      auto vel_foot_slip = it->velocity_slip;
+      if (!vel_foot_slip.isZero(0)) {
+        startIndex = Y.rows();
+        Y.conservativeResize(startIndex + dimX, Eigen::NoChange);
+        Y.segment(startIndex, dimX).setZero();
+        Y.segment(startIndex, 3) = vel_foot_slip; // v_bc
+        Y(startIndex + it_estimated->second + 1) = -1;
+
+        // Fill out b
+        startIndex = b.rows();
+        b.conservativeResize(startIndex + dimX, Eigen::NoChange);
+        b.segment(startIndex, dimX).setZero();
+        b(startIndex + it_estimated->second + 1) = -1;
+
+        // Fill out H
+        startIndex = H.rows();
+        H.conservativeResize(startIndex + 3, dimP);
+        H.block(startIndex, 0, 3, dimP).setZero();
+        H.block(startIndex, 3 * it_estimated->second - 3, 3, 3)
+            .setIdentity(); // I
+
+        // Fill out N
+        startIndex = N.rows();
+        N.conservativeResize(startIndex + 3, startIndex + 3);
+        N.block(startIndex, 0, 3, startIndex).setZero();
+        N.block(0, startIndex, startIndex, 3).setZero();
+        N.block(startIndex, startIndex, 3, 3) =
+            R * it->covariance_vel_slip * R.transpose();
 
         // Fill out PI
         startIndex = PI.rows();
@@ -530,11 +591,11 @@ void InEKF::correctKinematics(const vectorKinematics &measured_kinematics) {
 
       // Update all indices for estimated_landmarks and
       // estimated_contact_positions
-      /* for (std::map<int, int>::iterator it2 = estimated_landmarks_.begin();
+      for (std::map<int, int>::iterator it2 = estimated_landmarks_.begin();
            it2 != estimated_landmarks_.end(); ++it2) {
         if (it2->second > it->second)
           it2->second -= 1;
-      } */
+      }
       for (std::map<int, int>::iterator it2 =
                estimated_contact_positions_.begin();
            it2 != estimated_contact_positions_.end(); ++it2) {
@@ -574,7 +635,7 @@ void InEKF::correctKinematics(const vectorKinematics &measured_kinematics) {
       X_aug(startIndex, startIndex) = 1;
       X_aug(startIndex + 1, startIndex + 1) = 1;
       X_aug.block(0, startIndex, 3, 1) = p + R * it->position;
-      X_aug.block(0, startIndex + 1, 3, 1) = R * it->velocity;
+      X_aug.block(0, startIndex + 1, 3, 1) = R * it->velocity_slip;
 
       // Initialize new landmark covariance - TODO:speed up
       Eigen::MatrixXd F =
@@ -591,7 +652,7 @@ void InEKF::correctKinematics(const vectorKinematics &measured_kinematics) {
       Eigen::MatrixXd G1 = Eigen::MatrixXd::Zero(F.rows(), 3);
       G.block(G1.rows() - state_.dimTheta() - 3, 0, 3, 3) = R;
       P_aug = (F * P_aug * F.transpose() + G * it->covariance * G.transpose() +
-               G1 * it->covariance_vel * G1.transpose())
+               G1 * it->covariance_vel_slip * G1.transpose())
                   .eval();
 
       // Update state and covariance

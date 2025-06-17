@@ -48,12 +48,17 @@ public:
   void setContactNoise(Eigen::Ref<const Eigen::Vector3d> standard_dev);
   void setContactNoise(Eigen::Ref<const Eigen::Matrix3d> cov);
 
+  void setContactVelNoise(double standard_dev);
+  void setContactVelNoise(Eigen::Ref<const Eigen::Vector3d> standard_dev);
+  void setContactVelNoise(Eigen::Ref<const Eigen::Matrix3d> cov);
+
   Eigen::Ref<const Eigen::Matrix3d> getGyroscopeCov() const;
   Eigen::Ref<const Eigen::Matrix3d> getAccelerometerCov() const;
   Eigen::Ref<const Eigen::Matrix3d> getGyroscopeBiasCov() const;
   Eigen::Ref<const Eigen::Matrix3d> getAccelerometerBiasCov() const;
   Eigen::Ref<const Eigen::Matrix3d> getLandmarkCov() const;
   Eigen::Ref<const Eigen::Matrix3d> getContactCov() const;
+  Eigen::Ref<const Eigen::Matrix3d> getContactVelCov() const;
 
   friend std::ostream &operator<<(std::ostream &os, const NoiseParams &p);
 
@@ -64,6 +69,7 @@ private:
   Eigen::Matrix3d Qba_;
   Eigen::Matrix3d Ql_;
   Eigen::Matrix3d Qc_;
+  Eigen::Matrix3d Qcv_;
 };
 
 } // namespace inekf

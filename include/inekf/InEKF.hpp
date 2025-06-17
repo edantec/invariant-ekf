@@ -31,22 +31,40 @@ public:
   Kinematics(int id_in, const Eigen::Vector3d &position_in,
              const Eigen::Matrix3d &covariance_in)
       : id(id_in), position(position_in), covariance(covariance_in) {
-    velocity.setZero();
-    covariance_vel.setZero();
+    velocity_local.setZero();
+    covariance_vel_local.setZero();
+    velocity_slip.setZero();
+    covariance_vel_slip.setZero();
   }
 
   Kinematics(int id_in, const Eigen::Vector3d &position_in,
              const Eigen::Matrix3d &covariance_in,
              const Eigen::Vector3d &velocity_in,
              const Eigen::Matrix3d &covariance_vel_in)
-      : id(id_in), position(position_in), velocity(velocity_in),
-        covariance(covariance_in), covariance_vel(covariance_vel_in) {}
+      : id(id_in), position(position_in), velocity_local(velocity_in),
+        covariance(covariance_in), covariance_vel_local(covariance_vel_in) {
+    velocity_slip.setZero();
+    covariance_vel_slip.setZero();
+  }
+
+  Kinematics(int id_in, const Eigen::Vector3d &position_in,
+             const Eigen::Matrix3d &covariance_in,
+             const Eigen::Vector3d &velocity_in,
+             const Eigen::Matrix3d &covariance_vel_in,
+             const Eigen::Vector3d &velocity_in_slip,
+             const Eigen::Matrix3d &covariance_vel_in_slip)
+      : id(id_in), position(position_in), velocity_local(velocity_in),
+        velocity_slip(velocity_in_slip), covariance(covariance_in),
+        covariance_vel_local(covariance_vel_in),
+        covariance_vel_slip(covariance_vel_in_slip) {}
 
   int id;
   Eigen::Vector3d position;
-  Eigen::Vector3d velocity;
+  Eigen::Vector3d velocity_local;
+  Eigen::Vector3d velocity_slip;
   Eigen::Matrix3d covariance;
-  Eigen::Matrix3d covariance_vel;
+  Eigen::Matrix3d covariance_vel_local;
+  Eigen::Matrix3d covariance_vel_slip;
 };
 
 class Landmark {
