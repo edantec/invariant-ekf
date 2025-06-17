@@ -118,7 +118,6 @@ void InEKF::propagate(const Eigen::VectorXd &m, double dt) {
   for (std::map<int, int>::iterator it = estimated_contact_positions_.begin();
        it != estimated_contact_positions_.end(); ++it) {
     A.block<3, 3>((it->second - 2) * 3, (it->second - 1) * 3).setIdentity();
-    ;
   }
 
   // Bias terms
