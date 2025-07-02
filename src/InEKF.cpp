@@ -649,7 +649,7 @@ void InEKF::correctKinematics(const vectorKinematics &measured_kinematics) {
       Eigen::MatrixXd G = Eigen::MatrixXd::Zero(F.rows(), 3);
       G.block(G.rows() - state_.dimTheta() - 6, 0, 3, 3) = R;
       Eigen::MatrixXd G1 = Eigen::MatrixXd::Zero(F.rows(), 3);
-      G.block(G1.rows() - state_.dimTheta() - 3, 0, 3, 3) = R;
+      G1.block(G1.rows() - state_.dimTheta() - 3, 0, 3, 3) = R;
       P_aug = (F * P_aug * F.transpose() + G * it->covariance * G.transpose() +
                G1 * it->covariance_vel_slip * G1.transpose())
                   .eval();
