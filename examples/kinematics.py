@@ -14,7 +14,7 @@ foot_frame_name = [prefix + "_foot" for prefix in ["FL", "FR", "RL", "RR"]]
 # Initial rotation
 R0 = np.array([[1, 0, 0],
                [0, -1, 0],
-               [0, 0, -1]]) 
+               [0, 0, -1]])
 
 v0 = np.zeros(3) # initial velocity
 p0 = np.zeros(3) # initial position
@@ -50,7 +50,7 @@ kinematics_list = []
 for i in range(4):
     # True/False if contact numbered i is on/off
     contact_list.append((i, True))
-    
+
     # Contact translation in base frame
     translation = np.zeros(3)
     covariance = np.eye(3) * 0.0001
@@ -65,7 +65,7 @@ for i in range(4):
 # Propagation step
 filter.propagate(imu_measure, dt)
 
-# Set active contacts 
+# Set active contacts
 filter.setContacts(contact_list)
 
 # Correction step through kinematics measures

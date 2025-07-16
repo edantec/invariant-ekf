@@ -22,6 +22,7 @@ void exposeRobotState() {
       .def("getRotation", &RobotState::getRotation)
       .def("getVelocity", &RobotState::getVelocity)
       .def("getPosition", &RobotState::getPosition)
+      .def("getColumn", &RobotState::getColumn)
       .def("getGyroscopeBias", &RobotState::getGyroscopeBias)
       .def("getAccelerometerBias", &RobotState::getAccelerometerBias)
       .def("dimX", &RobotState::dimX)
@@ -34,6 +35,7 @@ void exposeRobotState() {
       .def("setRotation", &RobotState::setRotation)
       .def("setVelocity", &RobotState::setVelocity)
       .def("setPosition", &RobotState::setPosition)
+      .def("setColumn", &RobotState::setColumn)
       .def("setGyroscopeBias", &RobotState::setGyroscopeBias)
       .def("setAccelerometerBias", &RobotState::setAccelerometerBias)
 

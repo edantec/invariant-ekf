@@ -35,11 +35,16 @@ void exposeInEKF() {
       .def(bp::init<int, const Eigen::Vector3d &, const Eigen::Matrix3d &>())
       .def(bp::init<int, const Eigen::Vector3d &, const Eigen::Matrix3d &,
                     const Eigen::Vector3d &, const Eigen::Matrix3d &>())
+      .def(bp::init<int, const Eigen::Vector3d &, const Eigen::Matrix3d &,
+                    const Eigen::Vector3d &, const Eigen::Matrix3d &,
+                    const Eigen::Vector3d &, const Eigen::Matrix3d &>())
       .def_readwrite("id", &Kinematics::id)
       .def_readwrite("position", &Kinematics::position)
-      .def_readwrite("velocity", &Kinematics::velocity)
+      .def_readwrite("velocity_local", &Kinematics::velocity_local)
+      .def_readwrite("velocity_slip", &Kinematics::velocity_slip)
       .def_readwrite("covariance", &Kinematics::covariance)
-      .def_readwrite("covariance_vel", &Kinematics::covariance_vel);
+      .def_readwrite("covariance_vel_local", &Kinematics::covariance_vel_local)
+      .def_readwrite("covariance_vel_slip", &Kinematics::covariance_vel_slip);
 
   bp::class_<InEKF>("InEKF")
       .def(bp::init<>())

@@ -34,6 +34,7 @@ public:
   Eigen::Ref<const Eigen::Matrix3d> getRotation() const;
   Eigen::Ref<const Eigen::Vector3d> getVelocity() const;
   Eigen::Ref<const Eigen::Vector3d> getPosition() const;
+  Eigen::Ref<const Eigen::Vector3d> getColumn(const int id) const;
   Eigen::Ref<const Eigen::Vector3d> getGyroscopeBias() const;
   Eigen::Ref<const Eigen::Vector3d> getAccelerometerBias() const;
   long dimX() const;
@@ -46,6 +47,7 @@ public:
   void setRotation(Eigen::Ref<const Eigen::Matrix3d> R);
   void setVelocity(Eigen::Ref<const Eigen::Vector3d> v);
   void setPosition(Eigen::Ref<const Eigen::Vector3d> p);
+  void setColumn(Eigen::Ref<const Eigen::Vector3d> d, const int id);
   void setGyroscopeBias(Eigen::Ref<const Eigen::Vector3d> bg);
   void setAccelerometerBias(Eigen::Ref<const Eigen::Vector3d> ba);
 
